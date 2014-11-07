@@ -136,7 +136,9 @@ def handleConnection(clientSocket, clientAddr):
 				forwardMessage(request, clientSocket, serverSocket)
 				# read response from server
 				response = readResponseHeader(serverSocket)
+				lock.acquire()
 				logMessage(clientAddr, request, response.statusCode, response.statusMessage)
+				lock.release()
 				# send response to client
 				forwardMessage(response, serverSocket, clientSocket)
 				serverSocket.close()
