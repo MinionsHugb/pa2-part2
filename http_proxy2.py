@@ -153,8 +153,12 @@ def handleConnection(clientSocket, clientAddr):
 					keepAlive = connectionHeader == None or connectionHeader.lower() == 'keep-alive'
 			else: # connection was closed by client
 				keepAlive = False
-		except TimeoutException, e:
+		except TimeoutException as t:
 			print "timeout occured, closing connection to client"
+			keepAlive = False
+		except socket.error as e:
+			print "ERROR on connection to " + str(clientHost) + ":" + str(clientPort) + " :" + str(e)
+			print "connection closed after error: " +  str(clientHost) + ":" + str(clientPort)
 			keepAlive = False
 	
 	# close all sockets opened for that client
