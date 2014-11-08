@@ -122,6 +122,7 @@ def handleConnection(clientSocket, clientAddr):
 	clientSocket = Socket(clientSocket)
 	# keep the connection alive until keepAlive turns false (for whatever reason)
 	keepAlive = True
+	serverExists = True
 	while keepAlive:
 		try:
 			# TODO: handle pipelining
@@ -129,23 +130,27 @@ def handleConnection(clientSocket, clientAddr):
 			# handle the request
 			if request != None:
 				#print request.method, request.hostname, request.port, request.path, request.version
-				#print str(request.headers)
-				# open connection to server
-				serverSocket = Socket(socketToServer(request.hostname, request.port))
-				# forward request
-				forwardMessage(request, clientSocket, serverSocket, None)
-				# read response from server
-				response = readResponseHeader(serverSocket)
-				lock.acquire()
-				logMessage(clientAddr, request, response.statusCode, response.statusMessage)
-				lock.release()
-				# send response to client
-				if request.method == 'GET':
-					forwardMessage(response, serverSocket, clientSocket, request)
+				if existing(request.hostname + request.path):
+					forwardCache(clientSocket, cacheItems[request.hostname + request.path]['data'])
+					serverExists = False
 				else:
-					forwardMessage(response, serverSocket, clientSocket, None)
-				serverSocket.close()
-				serverSocket = None
+					#print str(request.headers)
+					# open connection to server
+					serverSocket = Socket(socketToServer(request.hostname, request.port))
+					# forward request
+					forwardMessage(request, clientSocket, serverSocket, None)
+					# read response from server
+					response = readResponseHeader(serverSocket)
+					lock.acquire()
+					logMessage(clientAddr, request, response.statusCode, response.statusMessage)
+					lock.release()
+					# send response to client
+					if request.method == 'GET':
+						forwardMessage(response, serverSocket, clientSocket, request)
+					else:
+						forwardMessage(response, serverSocket, clientSocket, None)
+					serverSocket.close()
+					serverSocket = None
 				#print "-----"
 				# TODO: reuse connection to server for more requests
 				connectionHeader = request.headers.getheader('Connection')
@@ -171,6 +176,19 @@ def handleConnection(clientSocket, clientAddr):
 	clientSocket.close()
 ## end of handleConnection
 
+def existing(key):
+	try:
+		x = cacheItems[key]
+	except KeyError:
+		return False
+	return True
+		
+def forwardCache(sSocket, data):
+	print "Using old data"
+	
+	sSocket.sendAll(data)
+	 
+	print "did I make it to here?"
 # connect to a server and return the socket
 def socketToServer(hostName, port):
 	#print "connecting to " + hostName + ":" + str(port)
@@ -214,6 +232,7 @@ def forwardMessage(messageHeader, sourceSocket, destSocket, request):
 	chunked = False
 	contentLength = 0
 	if request != None:
+		header = messageHeader
 		cacheData = str(messageHeader)
 	if transferEncoding != None and transferEncoding.lower().endswith('chunked'):
 		chunked = True
@@ -246,8 +265,8 @@ def forwardMessage(messageHeader, sourceSocket, destSocket, request):
 			destSocket.sendAll(data)
 	#print messageHeader
 	if request != None:
-		print str(cacheData)
-		cacheItems[request.hostname + request.path] = {'created': datetime.datetime.now(), 'data': cacheData} ## Andri: tharf ad breyta dateTime now.
+		#print str(cacheData)
+		cacheItems[request.hostname + request.path] = {'created': datetime.datetime.now(), 'data': cacheData, 'responseHeader': header } ## Andri: tharf ad breyta dateTime now.
 
 ## end forwardMessage
 
