@@ -128,12 +128,12 @@ def handleConnection(clientSocket, clientAddr):
 			request = readRequestHeader(clientSocket)
 			# handle the request
 			if request != None:
-				print request.method, request.hostname, request.port, request.path, request.version
+				#print request.method, request.hostname, request.port, request.path, request.version
 				#print str(request.headers)
 				# open connection to server
 				serverSocket = Socket(socketToServer(request.hostname, request.port))
 				# forward request
-				forwardMessage(request, clientSocket, serverSocket, request)
+				forwardMessage(request, clientSocket, serverSocket, None)
 				# read response from server
 				response = readResponseHeader(serverSocket)
 				lock.acquire()
@@ -143,7 +143,7 @@ def handleConnection(clientSocket, clientAddr):
 				forwardMessage(response, serverSocket, clientSocket, request)
 				serverSocket.close()
 				serverSocket = None
-				print "-----"
+				#print "-----"
 				# TODO: reuse connection to server for more requests
 				connectionHeader = request.headers.getheader('Connection')
 				# close connection to client if client does not want to keep it open
@@ -210,7 +210,8 @@ def forwardMessage(messageHeader, sourceSocket, destSocket, request):
 	contentLengthString = messageHeader.headers.getheader('Content-Length')
 	chunked = False
 	contentLength = 0
-	cacheData = ""
+	if request != None:
+		cacheData = str(messageHeader)
 	if transferEncoding != None and transferEncoding.lower().endswith('chunked'):
 		chunked = True
 	elif contentLengthString != None:
@@ -221,7 +222,8 @@ def forwardMessage(messageHeader, sourceSocket, destSocket, request):
 		chunkSize = int(line, 16)
 		while chunkSize > 0:
 			data = sourceSocket.readExactNumBytes(chunkSize + 2)
-			cacheData = cacheData + data; ### Andri: safna data til ad cacha 
+			if request != None:
+				cacheData = cacheData + str(data) ### Andri: safna data til ad cacha 
 			destSocket.sendAll(data)
 			line = sourceSocket.readline()
 			destSocket.sendAll(line)
@@ -235,18 +237,21 @@ def forwardMessage(messageHeader, sourceSocket, destSocket, request):
 		while bytesRead < contentLength:
 			# read missing data, but at most bufferSize bytes
 			data = sourceSocket.read(min(bufferSize, contentLength - bytesRead))
-			cacheData = cacheData + data; ### Andri: safna data til ad cacha 
+			if request != None:
+				cacheData = cacheData + str(data) ### Andri: safna data til ad cacha 
 			bytesRead += len(data)
 			destSocket.sendAll(data)
-
-	cacheItems[request.hostname + request.path] = {'created': datetime.datetime.now(), 'data': cacheData} ## Andri: tharf ad breyta dateTime now.
+	#print messageHeader
+	if request != None:
+		print str(cacheData)
+		cacheItems[request.hostname + request.path] = {'created': datetime.datetime.now(), 'data': cacheData} ## Andri: tharf ad breyta dateTime now.
 
 ## end forwardMessage
 
 class RequestHeader:
 	def __init__(self):
 		self.method = ''
-		self.hostname = ''
+		self.hostname = '' 
 		self.port = 80
 		self.path = '/'
 		self.version = ''
