@@ -133,14 +133,14 @@ def handleConnection(clientSocket, clientAddr):
 				# open connection to server
 				serverSocket = Socket(socketToServer(request.hostname, request.port))
 				# forward request
-				forwardMessage(request, clientSocket, serverSocket)
+				forwardMessage(request, clientSocket, serverSocket, request)
 				# read response from server
 				response = readResponseHeader(serverSocket)
 				lock.acquire()
 				logMessage(clientAddr, request, response.statusCode, response.statusMessage)
 				lock.release()
 				# send response to client
-				forwardMessage(response, serverSocket, clientSocket)
+				forwardMessage(response, serverSocket, clientSocket, request)
 				serverSocket.close()
 				serverSocket = None
 				print "-----"
@@ -153,13 +153,13 @@ def handleConnection(clientSocket, clientAddr):
 					keepAlive = connectionHeader == None or connectionHeader.lower() == 'keep-alive'
 			else: # connection was closed by client
 				keepAlive = False
-		except TimeoutException as t:
+		except TimeoutException, e:
 			print "timeout occured, closing connection to client"
 			keepAlive = False
-		except socket.error as e:
-			print "ERROR on connection to " + str(clientHost) + ":" + str(clientPort) + " :" + str(e)
-			print "connection closed after error: " +  str(clientHost) + ":" + str(clientPort)
-			keepAlive = False
+		#except socket.error as e:
+			#print "ERROR on connection to " + str(clientHost) + ":" + str(clientPort) + " :" + str(e)
+			#print "connection closed after error: " +  str(clientHost) + ":" + str(clientPort)
+			#keepAlive = False
 	
 	# close all sockets opened for that client
 	print "closing connection to client"
@@ -199,7 +199,7 @@ def getFileName(request, language):
 
 # forward an HTTP message from source file (allows us to use readline()) to
 # a destination socket without reading the whole message into memory first
-def forwardMessage(messageHeader, sourceSocket, destSocket): 
+def forwardMessage(messageHeader, sourceSocket, destSocket, request): 
 	# add a via header to tell the receiver that we are a proxy
 	messageHeader.headers['Via'] = 'SomeProxy'
 	# send the header (may include request line or response code line)
@@ -210,7 +210,7 @@ def forwardMessage(messageHeader, sourceSocket, destSocket):
 	contentLengthString = messageHeader.headers.getheader('Content-Length')
 	chunked = False
 	contentLength = 0
-	#cacheData = ""
+	cacheData = ""
 	if transferEncoding != None and transferEncoding.lower().endswith('chunked'):
 		chunked = True
 	elif contentLengthString != None:
@@ -239,7 +239,7 @@ def forwardMessage(messageHeader, sourceSocket, destSocket):
 			bytesRead += len(data)
 			destSocket.sendAll(data)
 
-	cacheItems[request.hostname + request.path]{'created': datetime.datetime.now(), 'data': cacheData]} ## Andri: tharf ad breyta dateTime now.
+	cacheItems[request.hostname + request.path] = {'created': datetime.datetime.now(), 'data': cacheData} ## Andri: tharf ad breyta dateTime now.
 
 ## end forwardMessage
 
@@ -340,7 +340,7 @@ def readResponseHeader(serverSocket):
 	return response
 
 logfileName = ""
-lock = threading.lock()
+lock = threading.Lock()
 cacheItems = {}
 
 def main():
