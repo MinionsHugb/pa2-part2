@@ -178,7 +178,7 @@ def logMessage(clientAddr, request, statusCode, statusMessage):
 	dt = datetime.datetime.now()
     	dt = dt.isoformat()
     	dt = str(dt[:-7]) + "+" + str(dt[-6:-2])
-	#print str(dt) + " : " + str(clientAddr[0]) + ":" + str(request.+ str(request.port) + " : " + request.method + " http://" + request.hostname + "/" + request.path + " : " + str(statusCode) + " " + str(statusMessage.replace('\r\n',''))
+	#print str(dt) + " : " + str(clientAddr[0]) + ":" + str(request.port) + " : " + request.method + " http://" + request.hostname + "/" + request.path + " : " + str(statusCode) + " " + str(statusMessage.replace('\r\n',''))
 	# 2014-10-07T18:00:51+0000 : 127.0.0.1:36122 GET http://www.google.com/ : 200 Ok
 	#print request.method, request.hostname, request.port, request.path, request.version
 	with open(logfileName, 'a') as file:
@@ -188,14 +188,14 @@ def logMessage(clientAddr, request, statusCode, statusMessage):
 def writeToCache(message, fileName):
 	with open(fileName, 'a') as file:
 		file.write(message)
-		fileName.close()
+		file.close()
 
 def getFileName(request, language):
 	return hash(request.hostname + request.path + language)
 
 # forward an HTTP message from source file (allows us to use readline()) to
 # a destination socket without reading the whole message into memory first
-def forwardMessage(messageHeader, sourceSocket, destSocket):
+def forwardMessage(messageHeader, sourceSocket, destSocket): 
 	# add a via header to tell the receiver that we are a proxy
 	messageHeader.headers['Via'] = 'SomeProxy'
 	# send the header (may include request line or response code line)
@@ -206,6 +206,7 @@ def forwardMessage(messageHeader, sourceSocket, destSocket):
 	contentLengthString = messageHeader.headers.getheader('Content-Length')
 	chunked = False
 	contentLength = 0
+	#cacheData = ""
 	if transferEncoding != None and transferEncoding.lower().endswith('chunked'):
 		chunked = True
 	elif contentLengthString != None:
@@ -216,6 +217,7 @@ def forwardMessage(messageHeader, sourceSocket, destSocket):
 		chunkSize = int(line, 16)
 		while chunkSize > 0:
 			data = sourceSocket.readExactNumBytes(chunkSize + 2)
+			cacheData = cacheData + data; ### Andri: safna data til ad cacha 
 			destSocket.sendAll(data)
 			line = sourceSocket.readline()
 			destSocket.sendAll(line)
@@ -229,8 +231,12 @@ def forwardMessage(messageHeader, sourceSocket, destSocket):
 		while bytesRead < contentLength:
 			# read missing data, but at most bufferSize bytes
 			data = sourceSocket.read(min(bufferSize, contentLength - bytesRead))
+			cacheData = cacheData + data; ### Andri: safna data til ad cacha 
 			bytesRead += len(data)
 			destSocket.sendAll(data)
+
+	cacheItems[request.hostname + request.path]{'created': datetime.datetime.now(), 'data': cacheData]} ## Andri: tharf ad breyta dateTime now.
+
 ## end forwardMessage
 
 class RequestHeader:
@@ -330,10 +336,11 @@ def readResponseHeader(serverSocket):
 	return response
 
 logfileName = ""
-lock = threading.Lock()
+lock = threading.lock()
+cacheItems = {}
 
 def main():
-	global logfileName, lock
+	global logfileName, lock, cacheItems
 	# read command line arguments
 	if len(sys.argv) != 3:
 		print "USAGE: python http_proxy.py PORT LOGFILE"
