@@ -140,7 +140,10 @@ def handleConnection(clientSocket, clientAddr):
 				logMessage(clientAddr, request, response.statusCode, response.statusMessage)
 				lock.release()
 				# send response to client
-				forwardMessage(response, serverSocket, clientSocket, request)
+				if request.method == 'GET':
+					forwardMessage(response, serverSocket, clientSocket, request)
+				else:
+					forwardMessage(response, serverSocket, clientSocket, None)
 				serverSocket.close()
 				serverSocket = None
 				#print "-----"
