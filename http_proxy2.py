@@ -70,7 +70,6 @@ class Socket:
 			raise TimeoutException('reading takes too long')
 		return self.socket.recv(n)
 
-
 	# Read at most n bytes from the socket.
 	def read(self, n):
 		data = ''
@@ -122,7 +121,6 @@ def handleConnection(clientSocket, clientAddr):
 	clientSocket = Socket(clientSocket)
 	# keep the connection alive until keepAlive turns false (for whatever reason)
 	keepAlive = True
-	serverExists = True
 	while keepAlive:
 		try:
 			# TODO: handle pipelining
@@ -132,7 +130,6 @@ def handleConnection(clientSocket, clientAddr):
 				#print request.method, request.hostname, request.port, request.path, request.version
 				if existing(request.hostname + request.path):
 					forwardCache(clientSocket, cacheItems[request.hostname + request.path]['data'])
-					serverExists = False
 				else:
 					#print str(request.headers)
 					# open connection to server
@@ -185,10 +182,8 @@ def existing(key):
 		
 def forwardCache(sSocket, data):
 	print "Using old data"
-	
 	sSocket.sendAll(data)
-	 
-	print "did I make it to here?"
+
 # connect to a server and return the socket
 def socketToServer(hostName, port):
 	#print "connecting to " + hostName + ":" + str(port)
@@ -265,7 +260,7 @@ def forwardMessage(messageHeader, sourceSocket, destSocket, request):
 			destSocket.sendAll(data)
 	#print messageHeader
 	if request != None:
-		#print str(cacheData)
+		print str(header)
 		cacheItems[request.hostname + request.path] = {'created': datetime.datetime.now(), 'data': cacheData, 'responseHeader': header } ## Andri: tharf ad breyta dateTime now.
 
 ## end forwardMessage
