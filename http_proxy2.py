@@ -23,6 +23,8 @@ import struct
 import hashlib
 import thread
 import threading
+import string
+import os
 
 # timeout for connections
 # if there is no message on a socket for this period of time, we close the socket
@@ -128,8 +130,8 @@ def handleConnection(clientSocket, clientAddr):
 			# handle the request
 			if request != None:
 				#print request.method, request.hostname, request.port, request.path, request.version
-				if existing(request.hostname + request.path):
-					forwardCache(clientSocket, cacheItems[request.hostname + request.path]['data'])
+				if existing(request.hostname + request.path): #baeta vid dagsg skylyrdi
+					forwardCache(clientSocket, cacheItems[request.hostname + request.path]['file'])
 				else:
 					#print str(request.headers)
 					# open connection to server
@@ -142,7 +144,17 @@ def handleConnection(clientSocket, clientAddr):
 					logMessage(clientAddr, request, response.statusCode, response.statusMessage)
 					lock.release()
 					# send response to client
-					if request.method == 'GET':
+					#print response.statusCode
+					#print "---------------"
+					#print response.version
+					#print response.statusCode
+					#print response.statusMessage
+					#print "---------------"
+					if response.cache and request.method == 'GET':
+						print "-------------------"
+						print "going to cache this!"
+						print response.headers
+						print "-------------------"
 						forwardMessage(response, serverSocket, clientSocket, request)
 					else:
 						forwardMessage(response, serverSocket, clientSocket, None)
@@ -180,8 +192,10 @@ def existing(key):
 		return False
 	return True
 		
-def forwardCache(sSocket, data):
-	print "Using old data"
+def forwardCache(sSocket, filename):
+	with open('cache/' + filename, 'r') as file:
+		data = file.read()
+	print "Using cached stuff"
 	sSocket.sendAll(data)
 
 # connect to a server and return the socket
@@ -260,9 +274,20 @@ def forwardMessage(messageHeader, sourceSocket, destSocket, request):
 			destSocket.sendAll(data)
 	#print messageHeader
 	if request != None:
-		print str(header)
-		cacheItems[request.hostname + request.path] = {'created': datetime.datetime.now(), 'data': cacheData, 'responseHeader': header } ## Andri: tharf ad breyta dateTime now.
-
+		#print str(header)
+		filename = hashlib.md5(str(request.hostname + request.path).encode())
+		filename = filename.hexdigest()
+		print filename
+		path = 'cache'
+		if not os.path.exists(path):
+			os.makedirs(path)
+		with open(os.path.join(path, filename), 'wb') as temp_file:
+			temp_file.write(cacheData)
+		temp_file.close()
+		cacheItems[request.hostname + request.path] = {'created': datetime.datetime.now(), 'file': filename} ## Andri: tharf ad breyta dateTime now.
+		keyS = cacheItems[request.hostname + request.path]
+		#print cacheItems.items()
+		#print "key is: " + int(keyS)
 ## end forwardMessage
 
 class RequestHeader:
@@ -356,9 +381,26 @@ def readResponseHeader(serverSocket):
 		return None
 
 	response.version, response.statusCode, response.statusMessage = statusLine.split(' ', 2)
-
+	response.expires = datetime.datetime.now()
+	response.cache = False
 	# read the headers
 	response.headers = readHTTPHeaders(serverSocket)
+	k = str(response.headers)
+	if response.statusCode == '200' and response.version == "HTTP/1.1": 
+		i = 0
+		for line in  k.splitlines():
+			x, y = line.split(": ")
+
+			if x == "Expires":
+				#response.eixpires = datetime.datetime.strptime(y)
+				response.cache = True
+				return response
+			#elif x == "Cache-Control":
+				#if 'public, max-age=' in y:
+					#response.expires = response.expires + datetime.timedelta(0,int(y[17:]))
+					#print "The delta-seconds are: " + y[17:]
+  					#response.cache = True
+					#return response
 	return response
 
 logfileName = ""
@@ -366,6 +408,7 @@ lock = threading.Lock()
 cacheItems = {}
 
 def main():
+	print str(datetime.datetime.now())
 	global logfileName, lock, cacheItems
 	# read command line arguments
 	if len(sys.argv) != 3:
